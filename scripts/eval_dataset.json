@@ -1,0 +1,602 @@
+[
+  {
+    "id": "Q001",
+    "type": "选择题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "下列各组对象中，能构成集合的是（ ）",
+    "options": ["A. 身高很高的同学", "B. 不超过 20 的非负整数", "C. 非常接近 1 的数", "D. 著名的数学家"],
+    "answer": "B",
+    "expected_keywords": ["集合", "确定性"]
+  },
+  {
+    "id": "Q002",
+    "type": "选择题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "函数 f(x) = x² 的单调递增区间是（ ）",
+    "options": ["A. R", "B. (-∞, 0]", "C. [0, +∞)", "D. 不存在"],
+    "answer": "C",
+    "expected_keywords": ["单调", "增", "定义域"]
+  },
+  {
+    "id": "Q003",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "计算：log₂ 8 = ______。",
+    "options": [],
+    "answer": "3",
+    "expected_keywords": ["对数", "3"]
+  },
+  {
+    "id": "Q004",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "计算：log₂ 8 + log₃ 9。",
+    "options": [],
+    "answer": "5",
+    "expected_keywords": ["对数运算法则", "5"]
+  },
+  {
+    "id": "Q005",
+    "type": "计算题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "已知等差数列 1, 4, 7, 10, …，求它的第 20 项 a₂₀。",
+    "options": [],
+    "answer": "58",
+    "expected_keywords": ["等差数列", "通项公式", "58"]
+  },
+  {
+    "id": "Q006",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "已知等比数列 2, 6, 18, …，求它的前 5 项和 S₅。",
+    "options": [],
+    "answer": "242",
+    "expected_keywords": ["等比数列", "前n项和", "242"]
+  },
+  {
+    "id": "Q007",
+    "type": "简答题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "用定义证明：函数 f(x) = 2x + 1 在 R 上是增函数。",
+    "options": [],
+    "answer": "取任意 x1<x2，作差 f(x1)-f(x2)=2(x1-x2)<0，故 f(x1)<f(x2)，得证。",
+    "expected_keywords": ["单调", "任意", "作差"]
+  },
+  {
+    "id": "Q008",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "sin 30° = ______。",
+    "options": [],
+    "answer": "1/2",
+    "expected_keywords": ["正弦", "1/2"]
+  },
+  {
+    "id": "Q009",
+    "type": "选择题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "下列函数中是偶函数的是（ ）",
+    "options": ["A. f(x)=x³", "B. f(x)=x²+1", "C. f(x)=2x+1", "D. f(x)=x，x∈[0,1]"],
+    "answer": "B",
+    "expected_keywords": ["偶函数", "f(-x)", "定义域"]
+  },
+  {
+    "id": "Q010",
+    "type": "计算题",
+    "difficulty": "较难",
+    "has_reference": true,
+    "question": "已知指数函数 f(x) = 2ˣ，求 f(log₂ 3) 的值。",
+    "options": [],
+    "answer": "3",
+    "expected_keywords": ["指数函数", "对数", "3"]
+  },
+  {
+    "id": "Q011",
+    "type": "选择题",
+    "difficulty": "中等",
+    "has_reference": false,
+    "question": "下列关于化学键的说法正确的是（ ）",
+    "options": ["A. 共价键只存在于单质中", "B. 离子键是阴、阳离子间通过静电作用形成的", "C. 金属键与自由电子无关", "D. 分子间作用力就是化学键"],
+    "answer": "B",
+    "expected_keywords": ["化学键"]
+  },
+  {
+    "id": "Q012",
+    "type": "简答题",
+    "difficulty": "较难",
+    "has_reference": true,
+    "question": "求函数 f(x) = x³ 的导函数 f'(x)，并说明导数的几何意义。",
+    "options": [],
+    "answer": "f'(x)=3x²，几何意义是曲线在切点处的切线斜率。",
+    "expected_keywords": ["导数", "切线", "斜率"]
+  },
+  {
+    "id": "Q013",
+    "type": "简答题",
+    "difficulty": "较难",
+    "has_reference": false,
+    "question": "论述牛顿第二定律的内容，并举一个生活中的应用实例。",
+    "options": [],
+    "answer": "F=ma，物体加速度与合外力成正比、与质量成反比。",
+    "expected_keywords": ["牛顿第二定律", "加速度"]
+  },
+  {
+    "id": "Q014",
+    "type": "简答题",
+    "difficulty": "中等",
+    "has_reference": false,
+    "question": "用过去完成时造一个英语句子，并说明过去完成时的构成与用法。",
+    "options": [],
+    "answer": "had done，表示过去某一时间之前已经完成的动作。",
+    "expected_keywords": ["过去完成时", "had"]
+  },
+  {
+    "id": "Q015",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": false,
+    "question": "甲午战争爆发于 ______ 年。",
+    "options": [],
+    "answer": "1894",
+    "expected_keywords": ["1894"]
+  },
+  {
+    "id": "Q016",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "解不等式：x² - 5x + 6 > 0。",
+    "options": [],
+    "answer": "x<2或x>3",
+    "expected_keywords": ["一元二次不等式", "解集"]
+  },
+  {
+    "id": "Q017",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "基本不等式 √(ab) ≤ (a+b)/2 中，等号成立的条件是 ______。",
+    "options": [],
+    "answer": "a=b",
+    "expected_keywords": ["基本不等式", "a=b"]
+  },
+  {
+    "id": "Q018",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "已知 x > 0，求 x + 4/x 的最小值。",
+    "options": [],
+    "answer": "4",
+    "expected_keywords": ["基本不等式", "最小值", "4"]
+  },
+  {
+    "id": "Q019",
+    "type": "选择题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "若 a > b，则下列不等式一定成立的是（ ）",
+    "options": ["A. ac > bc", "B. a + c > b + c", "C. a² > b²", "D. a/c > b/c"],
+    "answer": "B",
+    "expected_keywords": ["不等式", "性质"]
+  },
+  {
+    "id": "Q020",
+    "type": "计算题",
+    "difficulty": "较难",
+    "has_reference": true,
+    "question": "解不等式：2x² - 3x - 2 ≤ 0。",
+    "options": [],
+    "answer": "[-1/2,2]",
+    "expected_keywords": ["一元二次不等式", "解集"]
+  },
+  {
+    "id": "Q021",
+    "type": "简答题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "说明基本不等式中“算术平均数不小于几何平均数”的含义，并写出取等条件。",
+    "options": [],
+    "answer": "对正数 a、b 有 √(ab) ≤ (a+b)/2，当且仅当 a=b 时取等号。",
+    "expected_keywords": ["基本不等式", "算术平均数", "几何平均数"]
+  },
+  {
+    "id": "Q022",
+    "type": "填空题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "已知 a > 0，b > 0，且 a + b = 10，则 ab 的最大值是 ______。",
+    "options": [],
+    "answer": "25",
+    "expected_keywords": ["基本不等式", "最大值", "25"]
+  },
+  {
+    "id": "Q023",
+    "type": "选择题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "不等式 x² ≤ 9 的解集是（ ）",
+    "options": ["A. [-3, 3]", "B. (-3, 3)", "C. {x | x ≤ 3}", "D. {x | x ≥ -3}"],
+    "answer": "A",
+    "expected_keywords": ["一元二次不等式", "解集"]
+  },
+  {
+    "id": "Q024",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "解不等式：x² - 4x + 4 > 0。",
+    "options": [],
+    "answer": "x≠2",
+    "expected_keywords": ["一元二次不等式", "解集"]
+  },
+  {
+    "id": "Q025",
+    "type": "选择题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "向量数量积 a·b 的表达式是（ ）",
+    "options": ["A. |a||b|", "B. |a||b|cos θ", "C. |a| + |b|", "D. |a||b|sin θ"],
+    "answer": "B",
+    "expected_keywords": ["数量积", "夹角"]
+  },
+  {
+    "id": "Q026",
+    "type": "计算题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "已知 a = (1, 2)，b = (3, -1)，求 a·b。",
+    "options": [],
+    "answer": "1",
+    "expected_keywords": ["数量积", "坐标", "1"]
+  },
+  {
+    "id": "Q027",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "若 a·b = 0，且 a、b 都是非零向量，则 a 与 b 的关系是 ______。",
+    "options": [],
+    "answer": "垂直",
+    "expected_keywords": ["垂直", "数量积"]
+  },
+  {
+    "id": "Q028",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "已知 |a| = 3，|b| = 4，a 与 b 的夹角为 60°，求 a·b。",
+    "options": [],
+    "answer": "6",
+    "expected_keywords": ["数量积", "夹角", "6"]
+  },
+  {
+    "id": "Q029",
+    "type": "选择题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "设 a = (x₁, y₁)，b = (x₂, y₂)，则 a∥b 的坐标条件是（ ）",
+    "options": ["A. x₁x₂ + y₁y₂ = 0", "B. x₁y₂ - x₂y₁ = 0", "C. x₁ = x₂ 且 y₁ = y₂", "D. x₁y₁ = x₂y₂"],
+    "answer": "B",
+    "expected_keywords": ["平行", "坐标"]
+  },
+  {
+    "id": "Q030",
+    "type": "简答题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "用向量数量积说明：若 a·b = 0 且 a、b 为非零向量，则 a ⊥ b。",
+    "options": [],
+    "answer": "a·b=|a||b|cos θ=0，由 |a|、|b| 非零得 cos θ=0，故 θ=90°，两向量垂直。",
+    "expected_keywords": ["数量积", "垂直", "零"]
+  },
+  {
+    "id": "Q031",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "已知 a = (3, 4)，则 |a| = ______。",
+    "options": [],
+    "answer": "5",
+    "expected_keywords": ["模", "坐标", "5"]
+  },
+  {
+    "id": "Q032",
+    "type": "计算题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "已知 a = (1, 1)，b = (1, -1)，求 a·b，并判断这两个向量的位置关系。",
+    "options": [],
+    "answer": "0，两向量垂直",
+    "expected_keywords": ["数量积", "垂直", "0"]
+  },
+  {
+    "id": "Q033",
+    "type": "选择题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "球的表面积公式是（ ）",
+    "options": ["A. 2πR²", "B. 4πR²", "C. (4/3)πR³", "D. πR²"],
+    "answer": "B",
+    "expected_keywords": ["球", "表面积"]
+  },
+  {
+    "id": "Q034",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "已知球的半径 R = 3，求它的体积。",
+    "options": [],
+    "answer": "36π",
+    "expected_keywords": ["球", "体积", "36π"]
+  },
+  {
+    "id": "Q035",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "已知圆柱的底面半径 r = 2，高 h = 3，则它的体积是 ______。",
+    "options": [],
+    "answer": "12π",
+    "expected_keywords": ["圆柱", "体积", "12π"]
+  },
+  {
+    "id": "Q036",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "已知棱锥的底面积 S = 6，高 h = 4，求它的体积。",
+    "options": [],
+    "answer": "8",
+    "expected_keywords": ["棱锥", "体积", "8"]
+  },
+  {
+    "id": "Q037",
+    "type": "简答题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "线面平行的判定定理的内容是什么？",
+    "options": [],
+    "answer": "平面外一条直线与此平面内的一条直线平行，则该直线与此平面平行。",
+    "expected_keywords": ["线面平行", "判定定理"]
+  },
+  {
+    "id": "Q038",
+    "type": "简答题",
+    "difficulty": "较难",
+    "has_reference": true,
+    "question": "说明线面垂直的判定定理，并指出判定时必须满足的条件。",
+    "options": [],
+    "answer": "一条直线与一个平面内的两条相交直线都垂直，则该直线与此平面垂直；条件是两条直线必须相交。",
+    "expected_keywords": ["线面垂直", "判定定理"]
+  },
+  {
+    "id": "Q039",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "棱柱的体积公式是 V = ______。",
+    "options": [],
+    "answer": "Sh",
+    "expected_keywords": ["棱柱", "体积"]
+  },
+  {
+    "id": "Q040",
+    "type": "选择题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "掷一枚均匀的骰子，出现偶数点的概率是（ ）",
+    "options": ["A. 1/6", "B. 1/3", "C. 1/2", "D. 2/3"],
+    "answer": "C",
+    "expected_keywords": ["古典概型", "概率"]
+  },
+  {
+    "id": "Q041",
+    "type": "计算题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "袋中有 3 个红球和 2 个白球，任取 1 个球，求取到红球的概率。",
+    "options": [],
+    "answer": "3/5",
+    "expected_keywords": ["古典概型", "3/5"]
+  },
+  {
+    "id": "Q042",
+    "type": "选择题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "若事件 A 与 B 互斥，则 P(A∪B) = （ ）",
+    "options": ["A. P(A) - P(B)", "B. P(A) + P(B)", "C. P(A) × P(B)", "D. 1"],
+    "answer": "B",
+    "expected_keywords": ["互斥", "概率"]
+  },
+  {
+    "id": "Q043",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "求数据 2, 4, 6, 8, 10 的方差。",
+    "options": [],
+    "answer": "8",
+    "expected_keywords": ["平均数", "方差", "8"]
+  },
+  {
+    "id": "Q044",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "求数据 1, 2, 3, 4, 5 的平均数 = ______。",
+    "options": [],
+    "answer": "3",
+    "expected_keywords": ["平均数", "3"]
+  },
+  {
+    "id": "Q045",
+    "type": "简答题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "什么情况下适合采用分层抽样？它与简单随机抽样有何区别？",
+    "options": [],
+    "answer": "总体由差异明显的几部分组成时适合分层抽样，按比例从各层独立抽取；简单随机抽样适用于总体容量较小的情况。",
+    "expected_keywords": ["分层抽样", "简单随机抽样"]
+  },
+  {
+    "id": "Q046",
+    "type": "选择题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "关于互斥事件与对立事件，下列说法正确的是（ ）",
+    "options": ["A. 对立事件一定是互斥事件", "B. 互斥事件一定是对立事件", "C. 两者没有关系", "D. 互斥事件的和事件概率为 1"],
+    "answer": "A",
+    "expected_keywords": ["互斥", "对立事件"]
+  },
+  {
+    "id": "Q047",
+    "type": "计算题",
+    "difficulty": "较难",
+    "has_reference": true,
+    "question": "求数据 2, 4, 5, 6, 8 的标准差。",
+    "options": [],
+    "answer": "2",
+    "expected_keywords": ["标准差", "方差", "2"]
+  },
+  {
+    "id": "Q048",
+    "type": "计算题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "求函数 f(x) = x⁵ 的导函数 f'(x)。",
+    "options": [],
+    "answer": "f'(x)=5x⁴",
+    "expected_keywords": ["导数"]
+  },
+  {
+    "id": "Q049",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "求函数 f(x) = sin x + cos x 的导函数 f'(x)。",
+    "options": [],
+    "answer": "f'(x)=cos x-sin x",
+    "expected_keywords": ["导数", "cos"]
+  },
+  {
+    "id": "Q050",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "(ln x)' = ______。",
+    "options": [],
+    "answer": "1/x",
+    "expected_keywords": ["导数", "1/x"]
+  },
+  {
+    "id": "Q051",
+    "type": "简答题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "说明导数的几何意义，并举例说明如何求曲线在某点处的切线斜率。",
+    "options": [],
+    "answer": "曲线 y=f(x) 在点 (x₀,f(x₀)) 处的切线斜率等于 f'(x₀)；如 y=x³ 在 x=1 处斜率为 f'(1)=3。",
+    "expected_keywords": ["导数", "几何意义", "切线"]
+  },
+  {
+    "id": "Q052",
+    "type": "选择题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "若在某区间内 f'(x) > 0，则函数 y = f(x) 在该区间上（ ）",
+    "options": ["A. 单调递增", "B. 单调递减", "C. 是常数函数", "D. 无法判断"],
+    "answer": "A",
+    "expected_keywords": ["单调", "导数"]
+  },
+  {
+    "id": "Q053",
+    "type": "计算题",
+    "difficulty": "较难",
+    "has_reference": true,
+    "question": "求曲线 y = x³ 在 x = 1 处的切线斜率。",
+    "options": [],
+    "answer": "3",
+    "expected_keywords": ["切线", "斜率", "3"]
+  },
+  {
+    "id": "Q054",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "(eˣ)' = ______。",
+    "options": [],
+    "answer": "eˣ",
+    "expected_keywords": ["导数", "eˣ"]
+  },
+  {
+    "id": "Q055",
+    "type": "简答题",
+    "difficulty": "较难",
+    "has_reference": true,
+    "question": "利用导数求函数 f(x) = x² - 4x 的单调区间。",
+    "options": [],
+    "answer": "f'(x)=2x-4，x>2 时递增，x<2 时递减。",
+    "expected_keywords": ["导数", "单调", "区间"]
+  },
+  {
+    "id": "Q056",
+    "type": "计算题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "已知函数 f(x) = 3x - 2，求 f(4) 的值。",
+    "options": [],
+    "answer": "10",
+    "expected_keywords": ["函数", "10"]
+  },
+  {
+    "id": "Q057",
+    "type": "填空题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "对数函数 y = log₂ x 的定义域是 ______。",
+    "options": [],
+    "answer": "(0,+∞)",
+    "expected_keywords": ["对数函数", "定义域"]
+  },
+  {
+    "id": "Q058",
+    "type": "计算题",
+    "difficulty": "中等",
+    "has_reference": true,
+    "question": "用换底公式计算：log₄ 8 = ______。",
+    "options": [],
+    "answer": "3/2",
+    "expected_keywords": ["换底公式", "对数"]
+  },
+  {
+    "id": "Q059",
+    "type": "填空题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "指数函数 y = 2ˣ 的图象恒过定点 ______。",
+    "options": [],
+    "answer": "(0,1)",
+    "expected_keywords": ["指数函数", "定点"]
+  },
+  {
+    "id": "Q060",
+    "type": "计算题",
+    "difficulty": "基础",
+    "has_reference": true,
+    "question": "已知等差数列中 a₁ = 2，公差 d = 5，求 a₁₀。",
+    "options": [],
+    "answer": "47",
+    "expected_keywords": ["等差数列", "通项公式", "47"]
+  }
+]
