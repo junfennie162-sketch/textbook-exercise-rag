@@ -389,7 +389,7 @@ python scripts/diagnose_retrieval.py --json reports/gate_diagnose.json   # 存�
 
 ```powershell
 cd backend
-.venv\Scripts\python.exe -m pytest     # 97 项：切块/引用/边界/导出/混合检索/知识库删除/质量校验/SQLite 持久化/历史接口/上传查重/批量并发/评测统计/接口冒烟
+.venv\Scripts\python.exe -m pytest     # 158 项：切块/引用/边界/导出/混合检索/知识库删除/质量校验/SQLite 持久化/历史接口/上传查重/批量并发/评测统计/模型设置/接口冒烟
 cd ..\frontend
 pnpm test                              # 8 项：结构契约 + 设计令牌 + 解析渲染（标题/步骤/引用拆分）
 pnpm build                             # 生产构建
