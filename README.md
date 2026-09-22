@@ -22,6 +22,10 @@
 - Node.js 20.19+ / pnpm 10
 - Ollama（可选，本地模型模式用；云端模式无需安装）
 
+> **关于嵌入模型**：`backend/models_cache`（本地嵌入模型，约 95MB）未纳入 Git 仓库（体积原因）。
+> 从 GitHub 克隆后首次检索会自动从 HuggingFace 下载；国内网络受限时，可手动下载
+> `Qdrant/bge-small-zh-v1.5` 放入 `backend/models_cache/`，或直接使用随源码 ZIP 包提供的版本（解压即含模型）。
+
 ## API 配置详解（三种模型通道）
 
 系统内置三种生成通道，全部在 **`backend/.env`** 中配置，改完**重启后端**生效：
