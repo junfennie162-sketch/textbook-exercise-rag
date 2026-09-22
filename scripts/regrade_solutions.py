@@ -21,7 +21,6 @@ sys.path.insert(0, str(BASE_DIR / "scripts"))
 sys.path.insert(0, str(BASE_DIR / "backend"))
 
 import run_eval  # noqa: E402
-from app.services import verifier  # noqa: E402
 from app.store import documents as doc_store  # noqa: E402
 
 DATASET = BASE_DIR / "scripts" / "eval_dataset.json"
@@ -46,28 +45,14 @@ def load_solutions(limit: int | None) -> list[dict]:
 
 
 def regrade(solution: dict, item: dict) -> dict:
-    """对单份解析复算：完整率 / 引用命中 / 答案正确率 / 步骤验算。"""
-    answer = solution.get("answer_text", "")
-    result = {"answer": answer, "sources": solution.get("sources") or {},
+    """对单份解析复算：直接复用 run_eval.grade 的同一套口径。
+
+    此前这里重复实现了一遍评分逻辑，容易与 run_eval 漂移（口径调整后两处结果不一致）。
+    """
+    result = {"answer": solution.get("answer_text", ""),
+              "sources": solution.get("sources") or {},
               "status": solution.get("status", "unknown")}
-    ref_answer = verifier.extract_reference_answer(answer)
-    steps = verifier.verify_steps(answer)
-    return {
-        "id": item["id"],
-        "type": item["type"],
-        "difficulty": item["difficulty"],
-        "has_reference": item["has_reference"],
-        "completeness": round(run_eval.completeness(item, answer), 3),
-        "citation_hit": run_eval.citation_hit(item, result),
-        "status": result["status"],
-        "num_sources": len(result["sources"]),
-        "answer_correct": (verifier.compare_answers(ref_answer, item.get("answer", ""))
-                           if item["has_reference"] else None),
-        "extracted_answer": (ref_answer or "")[:60],
-        "steps_checked": steps["checked"],
-        "steps_passed": steps["passed"],
-        "answer_preview": answer[:120],
-    }
+    return run_eval.grade(item, result)
 
 
 def main() -> None:

@@ -10,10 +10,9 @@ _COLLECTION = "textbook_chunks"
 class VectorStore:
     def __init__(self, settings: Settings | None = None, ephemeral: bool = False):
         self.settings = settings or get_settings()
-        self.model = TextEmbedding(
-            model_name=self.settings.embedding_model,
-            cache_dir=str(self.settings.models_cache_dir),
-        )
+        # 嵌入模型懒加载：只读操作（按 ID 查块、列块、删除）不需要模型，
+        # 避免每次调用都初始化 ONNX 会话（秒级开销）
+        self._model = None
         if ephemeral:
             client = chromadb.EphemeralClient(
                 settings=chromadb.Settings(anonymized_telemetry=False))
@@ -26,6 +25,15 @@ class VectorStore:
             name=_COLLECTION,
             metadata={"hnsw:space": "cosine"},
         )
+
+    @property
+    def model(self) -> TextEmbedding:
+        if self._model is None:
+            self._model = TextEmbedding(
+                model_name=self.settings.embedding_model,
+                cache_dir=str(self.settings.models_cache_dir),
+            )
+        return self._model
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         return [vec.tolist() for vec in self.model.embed(texts)]

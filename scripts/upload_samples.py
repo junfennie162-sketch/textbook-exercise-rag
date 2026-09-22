@@ -17,6 +17,7 @@ SAMPLES = BASE_DIR / "data" / "samples"
 UPLOADS = [
     ("textbook", "样例教材_高中数学基础章节.docx"),
     ("exercise", "样例习题册_高中数学60题.docx"),
+    ("textbook", "样例教材_补充章节_三角恒等变换与直线和圆.docx"),
 ]
 
 # 历史版本的样例文件名：使用 --replace 时一并清理，避免过期内容继续参与检索

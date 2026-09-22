@@ -62,6 +62,22 @@ def test_solution_detail_and_404(isolated_store) -> None:
     assert client.get("/api/solutions/missing").status_code == 404
 
 
+def test_list_total_counts_all_matching_rows(isolated_store) -> None:
+    """total 为符合条件的总数，limit 只影响本页返回条数。"""
+    for index in (2, 3, 4):
+        doc_store.save_solution({
+            "solution_id": f"s{index}", "question_text": f"题目 {index}",
+            "status": "ok", "blocked_type": None, "answer_text": "答案",
+            "step_check": None, "mode": "live",
+            "created_at": f"2026-09-19T10:0{index}:00", "sources": {},
+        })
+    payload = client.get("/api/solutions", params={"limit": 2}).json()
+    assert payload["total"] == 4            # s1 + s2 / s3 / s4
+    assert payload["returned"] == 2
+    assert len(payload["items"]) == 2
+    assert client.get("/api/solutions", params={"status": "blocked"}).json()["total"] == 0
+
+
 def test_delete_solution_and_404(isolated_store) -> None:
     removed = client.delete("/api/solutions/s1")
     assert removed.status_code == 200

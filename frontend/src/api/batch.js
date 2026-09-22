@@ -22,5 +22,9 @@ export async function getBatchStatus(batchId) {
 
 export async function cancelBatch(batchId) {
   const response = await fetch(`/api/batch/${batchId}/cancel`, { method: 'POST' })
-  return response.json()
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload.detail || `中断任务失败：${response.status}`)
+  }
+  return payload
 }

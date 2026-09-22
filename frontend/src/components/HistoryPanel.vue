@@ -3,8 +3,10 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { deleteSolution, getSolution, listSolutions } from '../api/solutions'
+import { fetchGaps } from '../api/sources'
 import { toast } from '../composables/useToast'
 import { parseAnswerBlocks, parseInline } from '../utils/answer'
+import { llmModeMeta } from '../utils/llmMode'
 
 const router = useRouter()
 
@@ -15,26 +17,36 @@ const STATUS_OPTIONS = [
 ]
 
 const items = ref([])
+const total = ref(0)
 const keyword = ref('')
 const statusFilter = ref('')
+const limit = ref(50)          // 每次多加载 50 条（后端单次上限 500）
+const MAX_LIMIT = 500
 const loading = ref(false)
 const detail = ref(null)
 const detailLoading = ref('')
 const confirmingId = ref('')
 const deleting = ref(false)
+const gaps = ref(null)
 
-const modeLabel = computed(() => (mode) => (mode === 'mock' ? '离线模板' : '真实模型'))
+// 生成时使用的模型（参数面板可调后，历史记录需可追溯）
+const shortModel = (value) => {
+  const text = String(value || '').split('/').pop()
+  return text.length > 26 ? `${text.slice(0, 26)}…` : text
+}
+
 const detailBlocks = computed(() => (detail.value ? parseAnswerBlocks(detail.value.answer_text) : []))
 const detailSources = computed(() => Object.entries(detail.value?.sources ?? {}))
-
 async function load() {
   loading.value = true
   try {
     const payload = await listSolutions({
+      limit: limit.value,
       keyword: keyword.value.trim(),
       status: statusFilter.value,
     })
     items.value = payload.items ?? []
+    total.value = payload.total ?? items.value.length
   } catch (err) {
     toast.error(err.message)
   } finally {
@@ -42,9 +54,22 @@ async function load() {
   }
 }
 
+function loadMore() {
+  limit.value = Math.min(limit.value + 50, MAX_LIMIT)
+  load()
+}
+
 function resetFilters() {
   keyword.value = ''
   statusFilter.value = ''
+  limit.value = 50
+  load()
+}
+
+function viewBlockedOnly() {
+  // 缺口摘要卡片 → 只看被拒答的题（缺口对应记录）
+  statusFilter.value = 'blocked'
+  limit.value = 50
   load()
 }
 
@@ -69,6 +94,12 @@ function regenerate(item) {
   toast.info('已把题目带入解析生成面板，点击「生成解析」即可重新生成')
 }
 
+function exportItem(item, fmt) {
+  // 复用后端导出接口（与解析面板同一套生成文件逻辑）
+  window.open(`/api/export/${item.solution_id}?fmt=${fmt}`, '_blank')
+  toast.info(`正在导出 ${fmt === 'docx' ? 'Word' : 'Markdown'}`)
+}
+
 async function onDelete(item) {
   deleting.value = true
   try {
@@ -89,7 +120,40 @@ function statusText(item) {
   return item.blocked_type === 'incomplete' ? '题目信息不完整' : '无教材依据'
 }
 
-onMounted(load)
+// 拒答记录的原因与处理建议（与后端 guard.build_error_response 的文案保持一致）
+const BLOCKED_INFO = {
+  incomplete: {
+    title: '题目信息不完整',
+    tip: '请补充缺失的条件（如数值、前提）后重试；也可在「解析生成」面板用完整题干重新生成。',
+  },
+  no_evidence: {
+    title: '未在教材中找到相关依据',
+    tip: '本题考点可能超出当前教材范围。可先在「资料上传」补充对应章节语料，再点击「重新生成」重试。',
+  },
+}
+const blockedInfo = (item) => BLOCKED_INFO[item?.blocked_type] ?? {
+  title: '已拒答',
+  tip: '题目缺少教材依据或信息不全，未生成解析内容。',
+}
+
+// 生成模式标签：文案与顶栏徽标共用一份口径（mock 离线模板 / ollama 本地 / cloud·live 云端）
+const modeLabel = (item) => {
+  const meta = llmModeMeta(item.mode)
+  return `${meta.icon} ${meta.label}`
+}
+
+async function loadGaps() {
+  try {
+    gaps.value = await fetchGaps()
+  } catch {
+    gaps.value = null   // 缺口摘要是增强信息：失败时静默，不打扰主流程
+  }
+}
+
+onMounted(() => {
+  load()
+  loadGaps()
+})
 </script>
 
 <template>
@@ -97,7 +161,9 @@ onMounted(load)
     <section class="card">
       <div class="card-head">
         <h2>历史解析结果</h2>
-        <span class="muted">共 {{ items.length }} 条（最多显示最近 50 条）</span>
+        <span class="muted">
+          共 {{ total }} 条<template v-if="items.length < total">（已显示 {{ items.length }} 条）</template>
+        </span>
       </div>
       <div class="card-body stack">
         <div class="row">
@@ -128,13 +194,33 @@ onMounted(load)
           删除会同时清理该解析的引用来源。
         </p>
 
+        <div v-if="gaps && gaps.total" class="gap-card">
+          <div class="row-between">
+            <span class="strong">🕳️ 教材缺口摘要</span>
+            <span class="muted">
+              共 {{ gaps.total }} 道题被拒答（无依据 {{ gaps.no_evidence }} · 信息不全 {{ gaps.incomplete }}）
+            </span>
+          </div>
+          <p class="muted" style="margin: 4px 0">{{ gaps.hint }}</p>
+          <div v-if="gaps.top_terms.length" class="row" style="gap: 6px; flex-wrap: wrap">
+            <span class="muted">高频考点词：</span>
+            <span v-for="term in gaps.top_terms" :key="term.term" class="badge">
+              {{ term.term }} × {{ term.count }}
+            </span>
+          </div>
+          <div class="row" style="margin-top: 6px">
+            <button class="btn btn-sm" type="button" @click="viewBlockedOnly">只看这些被拒答的题</button>
+          </div>
+        </div>
+
         <div v-if="loading" class="stack-sm">
           <span class="skeleton" style="height: 46px"></span>
           <span class="skeleton" style="height: 46px"></span>
           <span class="skeleton" style="height: 46px"></span>
         </div>
 
-        <ul v-else-if="items.length" class="history-list">
+        <template v-else-if="items.length">
+          <ul class="history-list">
           <li v-for="item in items" :key="item.solution_id" class="history-item">
             <div class="row-between">
               <div class="stack-sm" style="flex: 1 1 320px; min-width: 0">
@@ -143,10 +229,9 @@ onMounted(load)
                   <span class="badge" :class="item.status === 'blocked' ? 'is-warn' : 'is-good'">
                     {{ item.status === 'blocked' ? '⚠️' : '✅' }} {{ statusText(item) }}
                   </span>
-                  <span class="badge" :class="item.mode === 'mock' ? 'is-warn' : 'is-accent'">
-                    {{ item.mode === 'mock' ? '🧪' : '🤖' }} {{ modeLabel(item.mode) }}
-                  </span>
-                  <span class="muted">引用 {{ item.sources_count }} 条</span>
+                  <span class="badge">{{ modeLabel(item) }}</span>
+                  <span v-if="item.model" class="muted" :title="item.model">🤖 {{ shortModel(item.model) }}</span>
+                  <span v-if="item.status !== 'blocked'" class="muted">引用 {{ item.sources_count }} 条</span>
                   <span class="muted num">{{ item.created_at }}</span>
                 </span>
               </div>
@@ -154,10 +239,18 @@ onMounted(load)
                 <button class="btn btn-sm" type="button" @click="toggleDetail(item)">
                   {{ detail?.solution_id === item.solution_id ? '收起' : '查看详情' }}
                 </button>
+                <template v-if="item.status === 'ok'">
+                  <button class="btn btn-sm" type="button" title="导出 Word" @click="exportItem(item, 'docx')">
+                    Word
+                  </button>
+                  <button class="btn btn-sm" type="button" title="导出 Markdown" @click="exportItem(item, 'md')">
+                    MD
+                  </button>
+                </template>
                 <button
                   class="btn btn-sm"
                   type="button"
-                  :disabled="item.status === 'blocked'"
+                  :title="item.status === 'blocked' ? '语料或参数更新后可重试本题' : '带入解析面板重新生成'"
                   @click="regenerate(item)"
                 >
                   重新生成
@@ -186,6 +279,18 @@ onMounted(load)
             </div>
 
             <div v-else-if="detail?.solution_id === item.solution_id" class="detail">
+              <template v-if="detail.status === 'blocked'">
+                <div class="stack-sm">
+                  <span class="badge is-warn">⚠️ {{ blockedInfo(detail).title }}</span>
+                  <p class="muted" style="margin: 0">{{ blockedInfo(detail).tip }}</p>
+                  <p class="muted" style="margin: 0">
+                    该题未生成解析内容（依据不足或题目信息不全），因此没有引用来源与步骤验算；
+                    拒答属于边界处理的预期行为，不是系统故障。
+                  </p>
+                </div>
+              </template>
+
+              <template v-else>
               <div class="stack-sm">
                 <template v-for="(block, index) in detailBlocks" :key="index">
                   <h3 v-if="block.type === 'h'" class="detail-heading">{{ block.text }}</h3>
@@ -216,28 +321,42 @@ onMounted(load)
                 <h4>引用来源</h4>
                 <ul class="source-list">
                   <li
-                    v-for="[key, ref] in detailSources"
+                    v-for="[key, source] in detailSources"
                     :key="key"
                     class="source-item"
-                    :class="{ 'is-warn': ref.low_relevance }"
+                    :class="{ 'is-warn': source.low_relevance }"
                   >
                     <span class="strong">{{ key }}</span>
-                    <span>{{ ref.source_file }}</span>
-                    <span class="muted">{{ ref.chapter }} · {{ ref.section }} · 第{{ ref.page_number }}页</span>
+                    <span>{{ source.source_file }}</span>
+                    <span class="muted">{{ source.chapter }} · {{ source.section }} · 第{{ source.page_number }}页</span>
                     <span class="spacer"></span>
-                    <span class="badge" :class="ref.low_relevance ? 'is-warn' : 'is-good'">
-                      {{ ref.low_relevance ? '⚠️ 建议复核' : '✅ 相关度良好' }}
+                    <span class="badge" :class="source.low_relevance ? 'is-warn' : 'is-good'">
+                      {{ source.low_relevance ? '⚠️ 建议复核' : '✅ 相关度良好' }}
                     </span>
-                    <span class="muted num">{{ (ref.relevance ?? 0).toFixed(2) }}</span>
+                    <span class="muted num">{{ (source.relevance ?? 0).toFixed(2) }}</span>
                   </li>
                 </ul>
               </div>
+              </template>
+
               <p class="muted" style="margin-top: 8px">
-                解析 ID：{{ detail.solution_id }} · 生成模式：{{ modeLabel(detail.mode) }}
+                解析 ID：{{ detail.solution_id }}<template v-if="detail.model"> · 生成模型：{{ detail.model }}</template>
               </p>
             </div>
           </li>
         </ul>
+
+          <div v-if="items.length < total" class="row" style="justify-content: center; gap: 10px; margin-top: 10px">
+            <button class="btn" type="button" :disabled="loading || limit >= MAX_LIMIT" @click="loadMore">
+              <span v-if="loading" class="spinner" aria-hidden="true"></span>
+              {{ loading ? '加载中…' : '加载更多' }}
+            </button>
+            <span class="muted">
+              已显示 {{ items.length }} / 共 {{ total }} 条
+              <template v-if="limit >= MAX_LIMIT">（已达单次上限，可用关键词或状态筛选定位）</template>
+            </span>
+          </div>
+        </template>
 
         <p v-else class="empty">
           没有符合条件的解析记录。先在「解析生成」面板生成一条，或调整筛选条件。
@@ -248,6 +367,12 @@ onMounted(load)
 </template>
 
 <style scoped>
+.gap-card {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+}
 .history-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .history-item {
   padding: var(--sp-3);

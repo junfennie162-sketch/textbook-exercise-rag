@@ -2,13 +2,18 @@
 
 
 def is_incomplete_by_rule(question: str) -> bool:
-    """规则快筛：命中任一条件即疑似信息不全。"""
+    """规则快筛：命中任一条件即疑似信息不全。
+
+    - 过短 / 以"求、计算"等动词截断收尾：题干被截掉的典型特征；
+    - 引用上一题或题图（"上题/同上/该题/如图"）：系统看不到外部上下文与图片，
+      按"宁拒答不编造"的边界处理，明确提示补齐条件。
+    """
     text = question.strip()
     if len(text) < 8:
         return True
     if text.endswith(("……", "...", "求", "求解", "计算")):
         return True
-    if any(k in text for k in ("上题", "同上", "该题", "如图")) and "图" not in text:
+    if any(k in text for k in ("上题", "同上", "该题", "如图", "见图", "下图")):
         return True
     return False
 

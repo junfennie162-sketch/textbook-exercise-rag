@@ -16,7 +16,8 @@ async def list_solutions(
     status: str | None = Query(None, description="按状态筛选：ok / blocked"),
 ) -> dict:
     items = doc_store.list_solutions(limit=limit, keyword=keyword, status=status)
-    return {"total": len(items), "items": items}
+    return {"total": doc_store.count_solutions(keyword=keyword, status=status),
+            "returned": len(items), "items": items}
 
 
 @router.get("/{solution_id}", summary="解析结果详情")

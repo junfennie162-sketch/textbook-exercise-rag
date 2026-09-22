@@ -61,6 +61,9 @@ async def _save_upload(file: UploadFile, doc_type: str) -> dict:
         return _index_document(doc_id, doc_type, file.filename or stored_name,
                                stored_name, upload_path, content_hash)
     except HTTPException:
+        # 解析/切块阶段的拒绝（如扫描版 PDF 无文本）：同样要清理临时文件与登记记录
+        upload_path.unlink(missing_ok=True)
+        doc_store.delete_document(doc_id)
         raise
     except Exception as exc:
         # 入库中途失败：清理文件与可能已写入的登记记录（页段随外键级联删除）
@@ -79,6 +82,13 @@ def _index_document(doc_id: str, doc_type: str, original_name: str,
     # 切块是纯计算：先算好，便于把文档记录（含单元数与块数）一次写全
     chunks = chunker.build_chunks(units, doc_id, original_name,
                                   cfg.chunk_max_size, cfg.chunk_overlap)
+    if not chunks:
+        # 页段存在但正文全空（典型：扫描版/图片型 PDF）：入库只会得到空知识库，
+        # 且内容指纹已存在会让修复后的同名文件再次上传被 409 挡住——必须当场拒绝
+        raise HTTPException(
+            status_code=400,
+            detail="文档未能提取到可入库文本（可能为扫描版/图片型 PDF），请提供含文本层的文件",
+        )
     for chunk in chunks:
         chunk["metadata"]["doc_type"] = doc_type
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { cancelBatch, createBatch, getBatchStatus } from '../api/batch'
 import { toast } from '../composables/useToast'
@@ -20,13 +20,20 @@ const STATUS_BADGE = {
   cancelled: 'is-warn',
 }
 
+const POLL_INTERVAL = 1500
+const MAX_POLL_RETRIES = 3          // 连续失败几次后停止自动重试（避免无限弹错）
+const STORAGE_KEY = 'batch-job-id'  // 记住 batch_id：切换面板/刷新后可重新接管进度
+
 const rawText = ref('')
 const running = ref(false)
 const batchId = ref('')
 const status = ref(null)
 const exporting = ref(false)
+const pollError = ref(false)
 
 let timer = null
+let disposed = false
+let consecutiveErrors = 0
 
 const questions = computed(() =>
   rawText.value
@@ -45,44 +52,93 @@ const exportableIds = computed(() =>
   (status.value?.tasks ?? []).filter((task) => task.solution_id).map((task) => task.solution_id),
 )
 
+function rememberJob(id) {
+  try {
+    if (id) localStorage.setItem(STORAGE_KEY, id)
+    else localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // 隐私模式等场景下 localStorage 不可用：仅影响"切换面板后接管"，不影响主流程
+  }
+}
+
+function schedulePoll(delay = POLL_INTERVAL) {
+  clearTimeout(timer)
+  timer = setTimeout(poll, delay)
+}
+
 async function onStart() {
   if (!questions.value.length) {
     toast.error('请先输入题目（每行一道）')
     return
   }
   running.value = true
+  pollError.value = false
+  consecutiveErrors = 0
   status.value = null
   try {
     const created = await createBatch(questions.value)
     batchId.value = created.batch_id
+    rememberJob(created.batch_id)
     toast.info(`批量任务已创建：共 ${questions.value.length} 题`)
-    poll()
+    schedulePoll()
   } catch (err) {
     toast.error(`创建任务失败：${err.message}`)
     running.value = false
   }
 }
 
-async function poll() {
+function finishToast(result) {
+  const detail = result.progress?.detail ?? {}
+  const success = detail.success ?? 0
+  const failed = detail.failed ?? 0
+  const cancelled = detail.cancelled ?? 0
+  const text = `批量任务结束：完成 ${success} · 失败 ${failed} · 中断 ${cancelled}`
+  if (result.status === 'failed' || (success === 0 && failed > 0)) {
+    toast.error(`${text}（全部失败，请检查模型通道后重试）`)
+  } else if (failed > 0 || cancelled > 0) {
+    toast.info(text)
+  } else {
+    toast.success(text)
+  }
+}
+
+async function poll({ silent = false } = {}) {
   try {
     const result = await getBatchStatus(batchId.value)
+    if (disposed) return
+    consecutiveErrors = 0
+    pollError.value = false
     status.value = result
     const stillRunning = (result.tasks ?? []).some((task) =>
       ['pending', 'running'].includes(task.status),
     )
     if (stillRunning) {
-      timer = setTimeout(poll, 1500)
+      running.value = true
+      schedulePoll()
       return
     }
     running.value = false
-    const detail = result.progress?.detail ?? {}
-    toast.success(
-      `批量任务结束：完成 ${detail.success ?? 0} · 失败 ${detail.failed ?? 0} · 中断 ${detail.cancelled ?? 0}`,
-    )
+    rememberJob('')
+    if (!silent) finishToast(result)
   } catch (err) {
-    toast.error(`查询任务状态失败：${err.message}`)
+    if (disposed) return
+    consecutiveErrors += 1
+    if (consecutiveErrors <= MAX_POLL_RETRIES) {
+      // 瞬时失败（网络抖动/后端重启中）：退避重试，任务在服务端照常运行
+      schedulePoll(POLL_INTERVAL * consecutiveErrors)
+      return
+    }
+    pollError.value = true
     running.value = false
+    toast.error(`查询任务状态失败：${err.message}。任务可能仍在后台运行，可点击「重新连接进度」`)
   }
+}
+
+async function reconnect() {
+  pollError.value = false
+  consecutiveErrors = 0
+  running.value = true
+  await poll()
 }
 
 async function onCancel() {
@@ -113,8 +169,11 @@ async function exportSelected(fmt) {
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = `solutions_export.${fmt}`
+    document.body.appendChild(anchor)
     anchor.click()
-    URL.revokeObjectURL(url)
+    anchor.remove()
+    // 立即 revoke 会让部分浏览器取消下载，延迟释放更稳
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
     toast.success(`已导出 ${exportableIds.value.length} 份解析`)
   } catch (err) {
     toast.error(`导出失败：${err.message}`)
@@ -126,9 +185,28 @@ async function exportSelected(fmt) {
 function resetForm() {
   status.value = null
   batchId.value = ''
+  pollError.value = false
+  rememberJob('')
 }
 
-onBeforeUnmount(() => clearTimeout(timer))
+onMounted(async () => {
+  // 面板重挂载（切换标签页/刷新）后接管仍在运行的任务，避免"任务在跑但界面已失联"
+  let saved = ''
+  try {
+    saved = localStorage.getItem(STORAGE_KEY) ?? ''
+  } catch {
+    saved = ''
+  }
+  if (!saved) return
+  batchId.value = saved
+  running.value = true
+  await poll({ silent: true })   // 若任务已结束：静默展示结果，不重复弹完成提示
+})
+
+onBeforeUnmount(() => {
+  disposed = true
+  clearTimeout(timer)
+})
 </script>
 
 <template>
@@ -152,6 +230,7 @@ onBeforeUnmount(() => clearTimeout(timer))
             {{ running ? '任务执行中…' : '开始批量生成' }}
           </button>
           <button v-if="running" class="btn btn-danger" type="button" @click="onCancel">中断任务</button>
+          <button v-if="pollError" class="btn" type="button" @click="reconnect">重新连接进度</button>
           <template v-if="status && !running">
             <button class="btn" type="button" :disabled="exporting" @click="exportSelected('docx')">
               导出 Word
@@ -163,7 +242,10 @@ onBeforeUnmount(() => clearTimeout(timer))
           </template>
         </div>
 
-        <p class="muted">批量任务为内存状态机，服务重启即清空；单题生成约需数秒，取决于模型响应速度。</p>
+        <p class="muted">
+          批量任务为内存状态机，服务重启即清空；单题生成约需数秒，取决于模型响应速度。
+          切换到其他面板后会保留任务编号并自动恢复进度跟踪。
+        </p>
       </div>
     </section>
 

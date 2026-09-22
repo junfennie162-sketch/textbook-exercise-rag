@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { fetchSource } from '../api/sources'
 import { toast } from '../composables/useToast'
 
 const props = defineProps({
@@ -13,6 +14,11 @@ const emit = defineEmits(['close'])
 
 const relevance = computed(() => Number(props.detail.relevance ?? 0))
 const percent = computed(() => `${Math.round(relevance.value * 100)}%`)
+
+// 完整原文：按 chunk_id 向后端追溯（旧记录对应的块可能已随语料更新删除）
+const fullText = ref('')
+const loadingFull = ref(false)
+const fullError = ref('')
 
 const boxStyle = computed(() => {
   const width = Math.min(420, window.innerWidth * 0.88)
@@ -27,10 +33,30 @@ function onKeydown(event) {
 
 async function copySnippet() {
   try {
-    await navigator.clipboard.writeText(props.detail.text_snippet ?? '')
-    toast.success('已复制原文片段')
+    await navigator.clipboard.writeText(fullText.value || props.detail.text_snippet || '')
+    toast.success(fullText.value ? '已复制完整原文' : '已复制原文片段')
   } catch {
     toast.error('复制失败：浏览器未授权剪贴板')
+  }
+}
+
+async function loadFullText() {
+  if (fullText.value || loadingFull.value) return
+  const chunkId = props.detail.chunk_id
+  if (!chunkId) {
+    fullError.value = '该记录未保存块 ID，无法追溯完整原文'
+    return
+  }
+  loadingFull.value = true
+  fullError.value = ''
+  try {
+    const payload = await fetchSource(chunkId)
+    fullText.value = payload.full_text || ''
+    if (!fullText.value) fullError.value = '该块在知识库中已不存在（语料更新过）'
+  } catch (err) {
+    fullError.value = `读取失败：${err.message}`
+  } finally {
+    loadingFull.value = false
   }
 }
 
@@ -66,9 +92,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
     <blockquote class="popover-quote">{{ detail.text_snippet }}</blockquote>
 
+    <div v-if="fullText" class="full-text-block">
+      <span class="muted">完整原文：</span>
+      <p class="full-text">{{ fullText }}</p>
+    </div>
+    <p v-if="fullError" class="muted" style="margin-top: 8px">{{ fullError }}</p>
+
     <div class="row" style="margin-top: 14px">
-      <button class="btn btn-sm" type="button" @click="copySnippet">复制原文片段</button>
+      <button
+        v-if="!fullText && !fullError"
+        class="btn btn-sm"
+        type="button"
+        :disabled="loadingFull"
+        @click="loadFullText"
+      >
+        <span v-if="loadingFull" class="spinner" aria-hidden="true"></span>
+        {{ loadingFull ? '读取中…' : '查看完整原文' }}
+      </button>
+      <button class="btn btn-sm" type="button" @click="copySnippet">
+        {{ fullText ? '复制完整原文' : '复制原文片段' }}
+      </button>
       <span class="muted">Esc 关闭</span>
     </div>
   </div>
 </template>
+
+<style scoped>
+.full-text-block { margin-top: 10px; }
+.full-text {
+  margin: 4px 0 0;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+</style>

@@ -1,18 +1,19 @@
 """3.2 单题解析生成：流式调用大模型；LLM_MOCK=true 时切换为离线模板生成。
 
+大模型双通道（云端 API / 本地 Ollama）统一走 OpenAI 兼容协议，
+由 core/llm.py 按 LLM_PROVIDER 解析端点，本模块只关心「拼消息 → 流式收块」。
+
 离线模板模式（`LLM_MOCK=true`）不访问任何外部服务：把检索到的教材片段按与题干的
 词面重合度排序，拼装成「思路 / 步骤 / 易错点 / 答案 / 引用」五段结构。
-它产出的是**模板文本而非模型作答**，因此每份解析开头都会显式标注，报告也会打上 mode=mock。
+它产出的是模板文本而非模型作答；接口与报告中保留生成模式字段（mode）以便追溯。
 """
 import asyncio
 import re
 
 from app.core.config import get_settings
-from app.core.llm import create_llm_client
+from app.core.llm import create_llm_client, resolve_llm_endpoint
 from app.prompts.solution_prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 from app.services.lexical_index import tokenize
-
-MOCK_NOTICE = "> 离线模板模式：本解析由检索到的教材片段拼装而成，未调用大模型。"
 
 _SENTENCE_SPLIT = re.compile(r"[。；;!?！？]")
 _MAX_SENTENCE_CHARS = 110
@@ -28,18 +29,31 @@ async def stream_analysis(question: str, context: str):
         return
 
     client = create_llm_client(cfg)
-    async with client.messages.stream(
-        model=cfg.llm_model,
-        max_tokens=4096,
-        system=SYSTEM_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": USER_PROMPT_TEMPLATE.format(question=question, context=context),
-        }],
-    ) as stream:
-        async for text in stream.text_stream:
+    endpoint = resolve_llm_endpoint(cfg)
+    user_prompt = USER_PROMPT_TEMPLATE.format(question=question, context=context)
+    # 附加指令只追加、不覆盖：底线规则（必须有依据、无依据拒答）在 SYSTEM_PROMPT 中不可改写
+    if cfg.custom_instruction.strip():
+        user_prompt += f"\n\n【补充要求】{cfg.custom_instruction.strip()}"
+    response = await client.chat.completions.create(
+        model=endpoint.model,
+        max_tokens=cfg.llm_max_tokens,
+        temperature=cfg.llm_temperature,
+        top_p=cfg.llm_top_p,
+        stream=True,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
+    try:
+        async for chunk in response:
+            if not chunk.choices:  # 部分兼容端点会推空 choices 的心跳块
+                continue
+            text = chunk.choices[0].delta.content
             if text:
                 yield text
+    finally:
+        await response.close()  # 消费方提前中断时也释放底层连接
 
 
 # ------------------------------------------------------------ 离线模板实现
@@ -93,7 +107,7 @@ def build_template_analysis(question: str, context: str) -> list[str]:
     answer = _answer_candidate(ranked)
     lead_label = ranked[0][1] if ranked else None
 
-    lines = [f"{MOCK_NOTICE}\n\n"]
+    lines: list[str] = []
 
     lines.append("## 解题思路\n\n")
     lines.append(f"本题围绕「{question.strip()[:40]}」展开。")

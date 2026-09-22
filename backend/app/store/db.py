@@ -97,6 +97,8 @@ _initialized: set[str] = set()
 _ADDED_COLUMNS = {
     "documents": {"content_hash": "TEXT"},
     "solution_sources": {"section": "TEXT"},
+    # 生成时使用的模型名（参数面板可调后，历史记录需可追溯"哪份解析用的什么模型"）
+    "solutions": {"model": "TEXT"},
 }
 # 依赖后加列的索引：必须在补列之后创建，否则旧库会因列不存在而报错
 _ADDED_INDEXES = (

@@ -129,15 +129,16 @@ def save_solution(solution: dict) -> None:
     with connect() as conn:
         conn.execute(
             """INSERT INTO solutions (solution_id, question_text, status, blocked_type,
-                                      answer_text, step_check_json, mode, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                      answer_text, step_check_json, mode, model, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(solution_id) DO UPDATE SET
                    question_text = excluded.question_text,
                    status = excluded.status,
                    blocked_type = excluded.blocked_type,
                    answer_text = excluded.answer_text,
                    step_check_json = excluded.step_check_json,
-                   mode = excluded.mode""",
+                   mode = excluded.mode,
+                   model = excluded.model""",
             (
                 solution["solution_id"],
                 solution.get("question_text", ""),
@@ -146,6 +147,7 @@ def save_solution(solution: dict) -> None:
                 solution.get("answer_text", ""),
                 json.dumps(step_check, ensure_ascii=False) if step_check else None,
                 solution.get("mode", "live"),
+                solution.get("model", ""),
                 solution.get("created_at", ""),
             ),
         )
@@ -186,6 +188,7 @@ def _solution_row(row, sources: dict) -> dict:
         "answer_text": row["answer_text"],
         "step_check": json.loads(step_check) if step_check else None,
         "mode": row["mode"],
+        "model": row["model"] if "model" in row.keys() else "",
         "created_at": row["created_at"],
         "sources": sources,
     }
@@ -243,12 +246,27 @@ def list_solutions(limit: int = 50, keyword: str | None = None,
             "status": row["status"],
             "blocked_type": row["blocked_type"],
             "mode": row["mode"],
+            "model": row["model"] if "model" in row.keys() else "",
             "created_at": row["created_at"],
             "sources_count": row["sources_count"],
             "answer_preview": (row["answer_text"] or "")[:120],
         }
         for row in rows
     ]
+
+
+def count_solutions(keyword: str | None = None, status: str | None = None) -> int:
+    """符合条件的解析结果总数（与 list_solutions 使用同一套筛选条件）。"""
+    sql = "SELECT COUNT(*) FROM solutions s WHERE 1 = 1"
+    params: list = []
+    if keyword:
+        sql += " AND (s.question_text LIKE ? OR s.answer_text LIKE ?)"
+        params.extend([f"%{keyword}%", f"%{keyword}%"])
+    if status:
+        sql += " AND s.status = ?"
+        params.append(status)
+    with connect() as conn:
+        return conn.execute(sql, params).fetchone()[0]
 
 
 def delete_solution(solution_id: str) -> bool:

@@ -20,12 +20,16 @@ const generating = ref(false)
 const answerText = ref('')
 const sources = ref({})
 const blocked = ref(null)
+const llmError = ref(null)
 const solutionId = ref('')
 const stepCheck = ref(null)
+// 终态：done=已保存 / stopped=用户停止 / error=失败 / incomplete=流被截断；null=进行中
+const outcome = ref(null)
 const popover = ref(null)
 const answerBox = ref(null)
 
 let controller = null
+let unmounting = false
 
 const sourceList = computed(() =>
   Object.entries(sources.value).map(([key, detail]) => ({ key, ...detail })),
@@ -51,8 +55,10 @@ async function onSolve() {
   answerText.value = ''
   sources.value = {}
   blocked.value = null
+  llmError.value = null
   solutionId.value = ''
   stepCheck.value = null
+  outcome.value = null
   popover.value = null
   controller = new AbortController()
 
@@ -63,17 +69,36 @@ async function onSolve() {
         if (event.type === 'chunk') answerText.value += event.content
         else if (event.type === 'sources') sources.value = event.sources ?? {}
         else if (event.type === 'blocked') blocked.value = event
-        else if (event.type === 'done') {
-          solutionId.value = event.solution_id || ''
-          stepCheck.value = event.step_check || null
+        else if (event.type === 'error') {
+          llmError.value = event
+          outcome.value = 'error'
+        } else if (event.type === 'done') {
+          if (event.status === 'ok') {
+            outcome.value = 'done'
+            solutionId.value = event.solution_id || ''
+            stepCheck.value = event.step_check || null
+          } else if (event.status === 'error') {
+            outcome.value = 'error'
+          }
+          // done(blocked) 的展示交给 blocked 区块
         }
       },
     })
-    if (!blocked.value) toast.success('解析生成完成')
+    if (outcome.value === 'done') {
+      toast.success('解析生成完成')
+    } else if (!blocked.value && outcome.value === null && answerText.value) {
+      // 流被中途截断（连接断开/服务重启）：明确告知未保存，不再谎报成功
+      outcome.value = 'incomplete'
+      toast.error('生成中断：解析未保存，请重试')
+    }
   } catch (err) {
     if (err.name === 'AbortError') {
-      toast.info('已停止本次生成')
+      if (!unmounting) {
+        outcome.value = 'stopped'
+        toast.info('已停止本次生成')
+      }
     } else {
+      outcome.value = 'error'
       toast.error(`生成失败：${err.message}`)
     }
   } finally {
@@ -120,7 +145,10 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => controller?.abort())
+onBeforeUnmount(() => {
+  unmounting = true   // 切换面板导致的主动中止：不弹「已停止」提示打扰用户
+  controller?.abort()
+})
 </script>
 
 <template>
@@ -164,8 +192,10 @@ onBeforeUnmount(() => controller?.abort())
           <button v-if="generating" class="btn btn-danger" type="button" @click="onStop">停止生成</button>
           <template v-if="answerText && !generating">
             <button class="btn" type="button" @click="copyAnswer">复制解析</button>
-            <button class="btn" type="button" @click="download('docx')">导出 Word</button>
-            <button class="btn" type="button" @click="download('md')">导出 Markdown</button>
+            <template v-if="solutionId">
+              <button class="btn" type="button" @click="download('docx')">导出 Word</button>
+              <button class="btn" type="button" @click="download('md')">导出 Markdown</button>
+            </template>
           </template>
         </div>
       </div>
@@ -177,6 +207,15 @@ onBeforeUnmount(() => controller?.abort())
         <strong>{{ blocked.title }}</strong>
         <p class="muted">{{ blocked.detail }}</p>
         <p class="muted">{{ blocked.tip }}</p>
+      </div>
+    </section>
+
+    <section v-if="llmError" class="alert is-warn">
+      <span aria-hidden="true">🔌</span>
+      <div>
+        <strong>模型调用失败</strong>
+        <p class="muted">{{ llmError.message }}</p>
+        <p class="muted">{{ llmError.hint }}</p>
       </div>
     </section>
 
@@ -194,7 +233,10 @@ onBeforeUnmount(() => controller?.abort())
         <h2>解析结果</h2>
         <div class="row">
           <span v-if="generating" class="badge is-accent"><span class="spinner" aria-hidden="true"></span>流式生成中</span>
-          <span v-else class="badge is-good">✅ 生成完成</span>
+          <span v-else-if="outcome === 'done'" class="badge is-good">✅ 生成完成（已保存）</span>
+          <span v-else-if="outcome === 'error'" class="badge is-critical">⚠️ 生成失败（未保存）</span>
+          <span v-else-if="outcome === 'stopped'" class="badge is-warn">⏹️ 已停止（未保存）</span>
+          <span v-else-if="answerText" class="badge is-warn">⚠️ 未完成（未保存）</span>
         </div>
       </div>
       <div class="card-body">

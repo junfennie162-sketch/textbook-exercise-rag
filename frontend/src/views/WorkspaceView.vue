@@ -1,15 +1,19 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { fetchHealth } from '../api/health'
+import { fetchLlmStatus } from '../api/llm'
 import BatchPanel from '../components/BatchPanel.vue'
 import DocumentViewer from '../components/DocumentViewer.vue'
 import EvalPanel from '../components/EvalPanel.vue'
 import HistoryPanel from '../components/HistoryPanel.vue'
+import SettingsPanel from '../components/SettingsPanel.vue'
 import SolvePanel from '../components/SolvePanel.vue'
 import UploadPanel from '../components/UploadPanel.vue'
 import { useTheme } from '../composables/useTheme'
+import { toast } from '../composables/useToast'
+import { llmModeMeta } from '../utils/llmMode'
 
 const tabs = [
   { id: 'upload', icon: '📚', label: '资料上传', hint: '上传教材与习题册，自动切块入库' },
@@ -18,6 +22,7 @@ const tabs = [
   { id: 'history', icon: '🗃️', label: '历史记录', hint: '查看、筛选、删除与重新生成历史解析' },
   { id: 'batch', icon: '🗂️', label: '批量任务', hint: '多题批量生成与合并导出' },
   { id: 'eval', icon: '📊', label: '评测报告', hint: '完整率 / 引用命中 / 答案正确率 / 步骤验算' },
+  { id: 'settings', icon: '⚙️', label: '模型设置', hint: '切换模型通道、调整生成与检索参数，保存即热生效' },
 ]
 
 const { mode, modes, label: themeLabel, setMode } = useTheme()
@@ -28,9 +33,12 @@ const tabIds = tabs.map((tab) => tab.id)
 // 面板状态写入 URL（/workspace?tab=eval），便于分享链接与直达
 const initialTab = String(route.query.tab ?? '')
 const activeTab = ref(tabIds.includes(initialTab) ? initialTab : 'upload')
+let syncingTab = false
 const docListVersion = ref(0)
 const connected = ref(null) // null=检测中
-const mockMode = ref(false)
+const llmMode = ref('')
+const llmModel = ref('')
+const probing = ref(false)
 
 const current = computed(() => tabs.find((tab) => tab.id === activeTab.value) ?? tabs[0])
 const statusText = computed(() => {
@@ -38,13 +46,44 @@ const statusText = computed(() => {
   return connected.value ? '后端已连接' : '等待后端连接'
 })
 
+// 生成模式徽标（与后端 /api/health 的 llm_mode 对应；文案与历史/评测面板共用）
+const llmBadge = computed(() => {
+  if (!connected.value) return null
+  const meta = llmModeMeta(llmMode.value || 'cloud')
+  const modelText = llmMode.value === 'mock' ? '' : (llmModel.value || '')
+  return { ...meta, title: `${meta.title}（点击可探测模型连通性）`,
+           text: `${meta.label}${modelText ? ` · ${modelText}` : ''}` }
+})
+
 async function checkHealth() {
   try {
     const result = await fetchHealth()
     connected.value = result.status === 'UP'
-    mockMode.value = result.llm_mock === true
+    llmMode.value = result.llm_mode ?? ''
+    llmModel.value = result.llm_model ?? ''
   } catch {
     connected.value = false
+  }
+}
+
+async function probeLlm() {
+  if (probing.value) return
+  probing.value = true
+  try {
+    const status = await fetchLlmStatus()
+    if (!status.ok) {
+      toast.error(`${status.error ?? '连接失败'}｜${status.hint ?? ''}`)
+    } else if (status.mode !== 'mock' && status.model_present === false) {
+      toast.error(`模型连接异常：${status.message}`)
+    } else {
+      toast.success(status.mode === 'mock'
+        ? '离线模板模式正常：不访问任何外部服务'
+        : `模型连接正常（${status.model}）`)
+    }
+  } catch (exc) {
+    toast.error(`探测请求失败：${exc.message}`)
+  } finally {
+    probing.value = false
   }
 }
 
@@ -54,10 +93,22 @@ function onUploaded() {
 }
 
 watch(activeTab, (id) => {
+  if (syncingTab) return
   const query = { ...route.query }
   if (id === 'upload') delete query.tab
   else query.tab = id
   router.replace({ query })
+})
+
+// 反向同步：URL 变化（历史记录「重新生成」跳转、前进后退、直接改地址）要回写当前面板
+watch(() => route.query.tab, (value) => {
+  const id = String(value ?? 'upload')
+  if (!tabIds.includes(id) || id === activeTab.value) return
+  syncingTab = true
+  activeTab.value = id
+  nextTick(() => {
+    syncingTab = false
+  })
 })
 
 onMounted(checkHealth)
@@ -116,13 +167,6 @@ onMounted(checkHealth)
           <p class="topbar-sub">{{ current.hint }}</p>
         </div>
         <div class="spacer"></div>
-        <span
-          v-if="mockMode"
-          class="badge is-warn"
-          title="未调用大模型：解析由检索到的教材片段拼装而成"
-        >
-          🧪 离线模板模式
-        </span>
         <button class="pill" type="button" :title="statusText" @click="checkHealth">
           <span
             class="dot"
@@ -130,6 +174,16 @@ onMounted(checkHealth)
             aria-hidden="true"
           ></span>
           {{ statusText }}
+        </button>
+        <button
+          v-if="llmBadge"
+          class="pill"
+          type="button"
+          :title="llmBadge.title"
+          @click="probeLlm"
+        >
+          <span aria-hidden="true">{{ llmBadge.icon }}</span>
+          {{ probing ? '模型探测中…' : llmBadge.text }}
         </button>
       </header>
 
@@ -139,7 +193,8 @@ onMounted(checkHealth)
         <SolvePanel v-else-if="activeTab === 'solve'" />
         <HistoryPanel v-else-if="activeTab === 'history'" />
         <BatchPanel v-else-if="activeTab === 'batch'" />
-        <EvalPanel v-else />
+        <EvalPanel v-else-if="activeTab === 'eval'" />
+        <SettingsPanel v-else @changed="checkHealth" />
       </section>
     </div>
   </div>

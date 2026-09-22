@@ -26,3 +26,24 @@ def test_health_exposes_generation_mode(monkeypatch) -> None:
 
     monkeypatch.setattr(health_api, "get_settings", lambda: Settings(llm_mock=False))
     assert client.get("/api/health").json()["llm_mock"] is False
+
+
+def test_health_exposes_llm_mode_and_model(monkeypatch) -> None:
+    """健康检查要暴露双通道信息：模式 / 通道 / 模型名，前端顶栏徽标据此渲染。"""
+    from app.api import health as health_api
+    from app.core.config import Settings
+
+    cases = [
+        (Settings(_env_file=None, llm_provider="ollama", ollama_model="qwen2.5:3b"),
+         "ollama", "ollama", "qwen2.5:3b"),
+        (Settings(_env_file=None, llm_provider="cloud", llm_model="glm-4.6"),
+         "cloud", "cloud", "glm-4.6"),
+        (Settings(_env_file=None, llm_provider="ollama", llm_mock=True),
+         "mock", "ollama", ""),  # 离线模板不使用任何模型
+    ]
+    for settings, mode, provider, model in cases:
+        monkeypatch.setattr(health_api, "get_settings", lambda s=settings: s)
+        payload = client.get("/api/health").json()
+        assert payload["llm_mode"] == mode
+        assert payload["llm_provider"] == provider
+        assert payload["llm_model"] == model

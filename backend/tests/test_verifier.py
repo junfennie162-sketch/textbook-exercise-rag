@@ -2,6 +2,7 @@
 from app.services.verifier import (
     check_equation,
     compare_answers,
+    contains_answer,
     extract_reference_answer,
     normalize_expression,
     verify_steps,
@@ -90,6 +91,26 @@ def test_check_equation_supports_caret_power() -> None:
     assert check_equation("2^5 = 30") is False
 
 
+def test_check_equation_exponent_binds_to_log_argument() -> None:
+    """log₂ 3² 意为 log₂(3²)：指数必须跟着实参，粘到 log 上会算出 log(3,2)² 而误报。"""
+    assert check_equation("log₂ 3² = 2·log₂ 3") is True
+    assert check_equation("log₂ 2³ = 3") is True
+    assert check_equation("log₂ 8 = log₂ 2³ = 3") is True
+
+
+def test_check_equation_maps_middle_dot_times() -> None:
+    """中文数学里的「·」是乘号，应能参与验算。"""
+    assert check_equation("2·3 = 6") is True
+    assert check_equation("3·log₂ 2 = 3") is True
+
+
+def test_check_equation_skips_prose_sentences() -> None:
+    """行文中带等号的句子不是待验算的等式（模型常在易错点里复述错误等式）。"""
+    assert check_equation("导致得出 3^(log₂3) = 2 之类的错误结论") is None
+    assert verify_steps("易错点：常见错误是 2 + 2 = 5。")["failed"] == []
+    assert verify_steps("注意：不要写成 1 + 1 = 3。")["failed"] == []
+
+
 def test_verify_steps_splits_multi_equation_line() -> None:
     text = "验证：4−1=3，7−4=3，10−7=3，所以 d = 3。"
     result = verify_steps(text)
@@ -163,3 +184,39 @@ def test_normalize_expression_fullwidth_and_superscript() -> None:
     assert normalize_expression("２＋３") == "2+3"
     assert normalize_expression("2³") == "2**3"
     assert normalize_expression("log₂ 8") == "log(8,2)"
+
+
+# ------------------------------------------------------------ 答案比对的写法归一化
+
+def test_compare_answers_pi_inside_sentence() -> None:
+    """π 项可以出现在句子里（"V=(4/3)π×3³=36π。"），不再只认整串。"""
+    assert compare_answers("球的体积是 (4/3)π×3³=36π。", "36π") is True
+    assert compare_answers("V=12π 立方单位", "36π") is False
+
+
+def test_compare_answers_fraction() -> None:
+    assert compare_answers("log₄ 8 = 3/2", "3/2") is True
+    assert compare_answers("结果为 1.5", "3/2") is True
+    assert compare_answers("2/3", "3/2") is False
+
+
+def test_compare_answers_choice_letter_in_prose() -> None:
+    assert compare_answers("故选 B。", "B") is True
+    assert compare_answers("答案：C", "B") is False
+
+
+def test_compare_answers_folds_superscript_and_subscript() -> None:
+    assert compare_answers("eˣ", "e^x") is True
+    assert compare_answers("f'(x) = 3x²", "f'(x)=3x^2") is True
+    assert compare_answers("a₂₀ = 58", "a20=58") is True
+
+
+def test_contains_answer_rules() -> None:
+    """别名包含判定：数值按容差、公式/含字母按边界、中文按包含。"""
+    assert contains_answer("在区间 (2,+∞) 上单调递增", "(2,+∞)")
+    assert contains_answer("故两向量垂直", "垂直")
+    assert contains_answer("f'(x) = 3x²", "3x^2")
+    assert not contains_answer("f'(x) = 3x³", "3x^2")
+    assert contains_answer("值为 1/2", "0.5")
+    assert not contains_answer("值为 13", "3")     # 纯数值别名按边界，不命中 13
+    assert not contains_answer(None, "垂直")

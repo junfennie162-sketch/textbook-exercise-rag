@@ -2,7 +2,16 @@
 .idea/
 .vscode/
 .env
+.env.bak*
 *.log
+
+# Python 缓存（全局生效，避免 scripts/ 等目录的 .pyc 被误提交）
+__pycache__/
+*.pyc
+*.pyo
+
+# 设置面板保存的运行期覆盖值（可能含 API Key）
+runtime_settings.json
 
 backend/.venv/
 backend/.pytest_cache/

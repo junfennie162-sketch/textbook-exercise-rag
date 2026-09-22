@@ -8,7 +8,6 @@ import { useTheme } from '../composables/useTheme'
 const { mode, modes, setMode } = useTheme()
 
 const connected = ref(null)
-const mockMode = ref(false)
 const docs = ref([])
 
 const chunks = computed(() => docs.value.reduce((sum, doc) => sum + (doc.chunks_count || 0), 0))
@@ -28,7 +27,6 @@ onMounted(async () => {
   try {
     const health = await fetchHealth()
     connected.value = health.status === 'UP'
-    mockMode.value = health.llm_mock === true
   } catch {
     connected.value = false
   }
@@ -78,13 +76,6 @@ onMounted(async () => {
               aria-hidden="true"
             ></span>
             {{ connected === null ? '正在检查后端…' : connected ? '后端已连接' : '等待后端连接' }}
-          </span>
-          <span
-            v-if="mockMode"
-            class="badge is-warn"
-            title="未调用大模型：解析由检索到的教材片段拼装而成"
-          >
-            🧪 离线模板模式
           </span>
         </div>
       </section>

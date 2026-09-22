@@ -20,6 +20,8 @@ OPERATORS = re.compile(r"\s*([+\-*/^(),])\s*")
 EQUATION_SPLITTER = re.compile(r"[，,。；;、]|\$\$")
 # 角度/圆周率存在歧义（弧度 vs 角度、π 归一化后易被抹掉），一律不判
 AMBIGUOUS_SYMBOLS = ("°", "π")
+# 行文中带等号的句子（"导致得出 X = Y 之类的错误结论"）不是待验算的等式，跳过
+PROSE_MARKERS = ("之类", "错误", "结论", "说法", "认为", "导致", "误以", "提示", "注意")
 # ASCII 星号只有在"数字 ** 数字/括号"这种明确乘方写法下才放行；
 # 其余情形（Markdown 加粗 **要点**、裸乘法 3*4）语义不明，一律跳过
 _EXPLICIT_POWER = re.compile(r"\d\s*\*\*\s*[\d(]")
@@ -82,7 +84,8 @@ def _build_translation() -> dict[int, str]:
         0xFF08: "(", 0xFF09: ")", 0xFF0B: "+", 0xFF0C: ",", 0xFF0D: "-",
         0xFF0E: ".", 0xFF0F: "/", 0xFF1A: ":", 0xFF1B: ";", 0xFF1D: "=",
         0xFF1C: "<", 0xFF1E: ">", 0xFF01: "!", 0xFF0A: "*",
-        0x00D7: "*", 0x22C5: "*", 0x00F7: "/", 0x2212: "-", 0x2013: "-",
+        0x00D7: "*", 0x22C5: "*", 0x2219: "*", 0x2217: "*", 0x00B7: "*",  # × ⋅ ∙ ∗ ·
+        0x00F7: "/", 0x2212: "-", 0x2013: "-",
         0x2014: "-", 0x2018: "'", 0x2019: "'", 0x201C: '"', 0x201D: '"',
         0x3010: "[", 0x3011: "]",
     })
@@ -160,8 +163,9 @@ def normalize_expression(expr: str) -> str:
     # 冒号分号不是合法数学符号；换成空格而不是删除，避免"第1步：2"被粘成"12"
     text = re.sub(r"[:;]", " ", text)
     # 显式底数的对数：log_2 8 / log_2(8) / log_28 → log(8, 2)
+    # 注意：空格写法下实参可能带指数（log₂ 3² 意为 log₂(3²)），指数要跟着实参走，不能粘到 log 上
     text = re.sub(r"log_([0-9.]+|\([^()]*\))\s*\(([^()]*)\)", r"log(\2, \1)", text)
-    text = re.sub(r"log_([0-9.]+)\s*([0-9.]+)", r"log(\2, \1)", text)
+    text = re.sub(r"log_([0-9.]+)\s*([0-9.]+(?:\*\*[0-9.]+)?)", r"log(\2, \1)", text)
     for func in _EXPLICIT_FUNCS:
         text = re.sub(rf"{func}\s*([0-9.]+)", rf"{func}(\1)", text)
     # 中文与全角符号替换成空格（不能直接删除，"第1步：2"会被粘成"12"导致误判）
@@ -269,6 +273,8 @@ def check_equation(equation: str) -> bool | None:
     """
     if "=" not in equation or any(mark in equation for mark in AMBIGUOUS_SYMBOLS):
         return None
+    if any(mark in equation for mark in PROSE_MARKERS):
+        return None          # 行文句子（"导致得出 X = Y 之类的结论"）不是待验算的等式
     parts = equation.split("=")
     if len(parts) < 2:
         return None
@@ -305,18 +311,34 @@ def verify_steps(text: str | None, max_checks: int = 40) -> dict:
 
 
 def _clean_answer(value: str) -> str:
-    """答案归一化：全角转半角、去 Markdown 装饰、去空白与首尾标点。
+    """答案归一化：全角转半角、上下标折叠、去 Markdown 装饰、去空白与首尾标点。
 
     去掉空白的理由：数学表达式中空格只是书写习惯（"x<2 或 x>3" 与 "x<2或x>3" 等价），
     保留会造成无意义的比对失败；中文仍然保留，便于文字型答案比对。
+    下标统一去下划线（x₁ / x_1 / x1 三者等价），修饰符字母（ˣ/ⁿ）折叠为 ^ 形式，
+    让"模型写法"与"标准答案写法"落到同一形态。
     """
     text = str(value).translate(_TRANSLATION)
+    for modifier, replacement in _MODIFIER_LETTERS.items():
+        text = text.replace(modifier, replacement)
+    text = text.replace("_", "")          # x_1 -> x1；与 x₁ 折叠后的 x_1 保持一致
+    # 上标折叠出的 "x**2" 先定型为 "x^2"，避免随后的去星号把幂次抹成 "x2"
+    text = re.sub(r"(?<=[0-9A-Za-z)\]）])\*\*(\d+)", r"^\1", text)
     text = text.replace("**", "").replace("*", "").replace("#", "")
     text = re.sub(r"\s+", "", text)
     return text.split("\n")[0].strip("。.,;:")
 
 
+# 上下标之外的修饰符字母（⁰-⁹ 等已在 _TRANSLATION 中处理）
+_MODIFIER_LETTERS = {
+    "ˣ": "^x", "ⁿ": "^n", "⁺": "+", "⁻": "-", "ᵃ": "^a", "ᵇ": "^b",
+}
+
+
 PI_TERM = re.compile(r"^([-+]?\d*\.?\d*)π$")
+_PI_ANYWHERE = re.compile(r"([-+]?\d*\.?\d*)\s*π")
+_FRACTION = re.compile(r"^(-?\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)$")
+_FRACTION_ANYWHERE = re.compile(r"(-?\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)")
 
 
 def _pi_coefficient(text: str) -> float | None:
@@ -329,13 +351,62 @@ def _pi_coefficient(text: str) -> float | None:
         return 1.0
     if coefficient == "-":
         return -1.0
-    return float(coefficient)
+    try:
+        return float(coefficient)
+    except ValueError:
+        # 退化系数（如 "+." / "1.2.3"）：无法解析时按不可判定处理，绝不抛异常
+        return None
+
+
+def _pi_terms(text: str) -> list[float]:
+    """抽取文本中出现的全部 π 项系数（"V=36π。" 这类句子也能命中）。"""
+    values: list[float] = []
+    for coefficient in _PI_ANYWHERE.findall(text):
+        if coefficient in ("", "+"):
+            values.append(1.0)
+        elif coefficient == "-":
+            values.append(-1.0)
+        else:
+            try:
+                values.append(float(coefficient))
+            except ValueError:
+                continue
+    return values
+
+
+def _fraction_value(text: str) -> float | None:
+    """"3/2" / "-1/2" 这类分数答案求值；分母为零或非分数形式返回 None。"""
+    match = _FRACTION.match(text)
+    if not match:
+        return None
+    denominator = float(match.group(2))
+    if denominator == 0:
+        return None
+    return float(match.group(1)) / denominator
+
+
+def _candidate_values(text: str) -> list[float]:
+    """文本中的全部候选数值（小数、分数、π 项），用于数值型答案的容差比对。"""
+    values = _numbers(text)
+    for numerator, denominator in _FRACTION_ANYWHERE.findall(text):
+        if float(denominator) != 0:
+            values.append(float(numerator) / float(denominator))
+    values.extend(value * math.pi for value in _pi_terms(text))
+    return values
 
 
 def _choice_letter(text: str) -> str | None:
-    """识别"B"、"B."、"B（…）"这类选项字母答案。"""
+    """识别选项字母答案："B"、"B."、"B（…）"，也兼容"答案：B"/"故选 B"这类行文。
+
+    宽松匹配只在全文中恰好出现一个独立选项字母时生效，避免误判含多个选项的文本。
+    """
     match = re.match(r"^([A-Da-d])(?![0-9A-Za-z])", text)
-    return match.group(1).upper() if match else None
+    if match:
+        return match.group(1).upper()
+    loose = set(re.findall(r"(?<![0-9A-Za-z])([A-Da-d])(?![0-9A-Za-z])", text))
+    if len(loose) == 1:
+        return loose.pop().upper()
+    return None
 
 
 def _numbers(text: str) -> list[float]:
@@ -347,7 +418,7 @@ def _close(left: float, right: float) -> bool:
 
 
 def compare_answers(generated: str | None, expected: str) -> bool | None:
-    """比较解析给出的答案与标准答案：数值容差 → π 系数 → 选项字母 → 归一化字符串。
+    """比较解析给出的答案与标准答案：数值容差 → 分数 → π 项 → 选项字母 → 归一化字符串。
 
     返回 True（一致）/ False（不一致）/ None（无法判定，不计入统计）。
     """
@@ -363,18 +434,45 @@ def compare_answers(generated: str | None, expected: str) -> bool | None:
 
     expected_pi = _pi_coefficient(exp_text)
     if expected_pi is not None:
-        generated_pi = _pi_coefficient(gen_text)
-        if generated_pi is not None:
-            return _close(generated_pi, expected_pi)
-        return False
+        # 在生成文本里搜索 π 项（"36π" 可以出现在 "V=(4/3)π×3³=36π。" 这类句子里）
+        candidates = _pi_terms(gen_text)
+        return any(_close(candidate, expected_pi) for candidate in candidates)
+
+    expected_fraction = _fraction_value(exp_text)
+    if expected_fraction is not None:
+        # 分数期望值：与生成文本中的数值/分数/π 项统一按数值容差比对（3/2 ≡ 1.5）
+        candidates = _candidate_values(gen_text)
+        return any(_close(candidate, expected_fraction) for candidate in candidates)
 
     if PURE_NUMBER.match(exp_text):
         exp_value = float(exp_text)
         if PURE_NUMBER.match(gen_text):
             return _close(float(gen_text), exp_value)
-        gen_numbers = _numbers(gen_text)
-        if not gen_numbers:
+        gen_values = _candidate_values(gen_text)
+        if not gen_values:
             return None
-        return any(_close(value, exp_value) for value in gen_numbers)
+        return any(_close(value, exp_value) for value in gen_values)
 
     return gen_text == exp_text
+
+
+def contains_answer(generated: str | None, expected: str) -> bool:
+    """别名判定：生成答案（已抽取参考答案段）中出现等价写法即算命中。
+
+    规则（别名由人工逐题核定，语义上"出现即正确"）：
+    - 纯数值/分数别名：按数值容差比对（与 compare_answers 同口径）；
+    - 含拉丁字母或数字的别名：要求按字母数字边界出现，避免 "x=1" 命中 "x=12"；
+    - 纯中文（含数学符号）别名：直接包含判定。
+    """
+    if not generated or not expected:
+        return False
+    gen_text, exp_text = _clean_answer(generated), _clean_answer(expected)
+    if not gen_text or not exp_text:
+        return False
+
+    if PURE_NUMBER.match(exp_text) or _FRACTION.match(exp_text):
+        return compare_answers(gen_text, exp_text) is True
+    if re.search(r"[0-9A-Za-z]", exp_text):
+        pattern = r"(?<![0-9A-Za-z])" + re.escape(exp_text) + r"(?![0-9A-Za-z])"
+        return re.search(pattern, gen_text) is not None
+    return exp_text in gen_text

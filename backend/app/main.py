@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import (batch, documents, eval as eval_api, export, health, solve,
-                     solutions, sources, upload)
+from app.api import (batch, documents, eval as eval_api, export, gaps, health, llm as llm_api,
+                     settings as settings_api, solve, solutions, sources, upload)
 from app.core.config import get_settings
 from app.store.db import init_db
 
@@ -31,5 +31,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (health, upload, documents, solve, sources, solutions, batch, export, eval_api):
+for module in (health, llm_api, settings_api, upload, documents, solve, sources,
+               solutions, batch, export, eval_api, gaps):
     app.include_router(module.router)

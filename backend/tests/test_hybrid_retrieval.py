@@ -189,3 +189,58 @@ def test_build_context_accepts_custom_warn_threshold(textbook_corpus) -> None:
     assert strict["来源1"]["low_relevance"] is True
     assert loose["来源1"]["low_relevance"] is False
     assert default["来源1"]["low_relevance"] is False   # 0.75 ≥ 默认阈值 0.60
+
+
+# ------------------------------------------------------------ 来源相对筛选
+
+def _scored_items() -> list[dict]:
+    return [
+        {"chunk_id": "c1", "text": "对数与对数运算的定义",
+         "metadata": {"doc_type": "textbook", "chapter": "第三章", "page_number": 28}, "score": 0.89},
+        {"chunk_id": "c2", "text": "对数的运算法则",
+         "metadata": {"doc_type": "textbook", "chapter": "第三章", "page_number": 31}, "score": 0.85},
+        {"chunk_id": "c3", "text": "换底公式的应用",
+         "metadata": {"doc_type": "textbook", "chapter": "第三章", "page_number": 30}, "score": 0.63},
+        {"chunk_id": "c4", "text": "等差数列的通项公式",
+         "metadata": {"doc_type": "textbook", "chapter": "第五章", "page_number": 45}, "score": 0.74},
+    ]
+
+
+def test_evidence_relative_cut_filters_weak_sources(monkeypatch) -> None:
+    """回归：对数题不应引到「第五章 数列」——低于最高分×0.85 的来源不进依据与引用列表。"""
+    monkeypatch.setattr(retriever, "retrieve_top_k",
+                        lambda *a, **k: [dict(i) for i in _scored_items()])
+    monkeypatch.setattr(retriever, "get_settings",
+                        lambda: Settings(_env_file=None, evidence_relative_cut=0.85,
+                                         similarity_threshold=0.6))
+
+    result = retriever.retrieve_with_fallback("计算对数的值")
+
+    kept = [item["chunk_id"] for item in result["items"]]
+    assert kept == ["c1", "c2"]                       # 0.63 与 0.74 < 0.89 × 0.85 = 0.7565
+    assert set(result["source_map"]) == {"来源1", "来源2"}
+    assert "等差数列" not in result["context"]
+
+
+def test_evidence_relative_cut_can_be_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(retriever, "retrieve_top_k",
+                        lambda *a, **k: [dict(i) for i in _scored_items()])
+    monkeypatch.setattr(retriever, "get_settings",
+                        lambda: Settings(_env_file=None, evidence_relative_cut=1.0,
+                                         similarity_threshold=0.6))
+
+    result = retriever.retrieve_with_fallback("计算对数的值")
+
+    assert len(result["items"]) == 4                  # 1.0 = 关闭筛选
+
+
+def test_select_evidence_boundaries() -> None:
+    """边界：空列表、最优分为 0、至少保留最佳来源。"""
+    assert retriever._select_evidence([], 0.8) == []
+
+    zero = [{"chunk_id": "z", "text": "x", "metadata": {}, "score": 0.0}]
+    assert retriever._select_evidence(zero, 0.8) == zero
+
+    only_best = [{"chunk_id": "a", "text": "x", "metadata": {}, "score": 0.9},
+                 {"chunk_id": "b", "text": "y", "metadata": {}, "score": 0.1}]
+    assert [i["chunk_id"] for i in retriever._select_evidence(only_best, 0.8)] == ["a"]

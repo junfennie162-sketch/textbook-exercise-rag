@@ -27,6 +27,7 @@
   /* 主色（序列蓝 Ramp：100 → 700） */
   --accent: #2a78d6;
   --accent-hover: #1c5cab;
+  --accent-on: #ffffff;   /* 主色底上的文字色（深色模式下主色底偏亮，需换成深色文字） */
   --accent-wash: #cde2fb;
   --accent-soft: #eaf2fd;
   --accent-ink: #184f95;
@@ -79,6 +80,7 @@
     --grid: #2c2c2a;
     --accent: #3987e5;
     --accent-hover: #86b6ef;
+    --accent-on: #0b0b0b;
     --accent-wash: #184f95;
     --accent-soft: rgba(57, 135, 229, 0.14);
     --accent-ink: #86b6ef;
@@ -105,6 +107,7 @@
   --grid: #2c2c2a;
   --accent: #3987e5;
   --accent-hover: #86b6ef;
+  --accent-on: #0b0b0b;
   --accent-wash: #184f95;
   --accent-soft: rgba(57, 135, 229, 0.14);
   --accent-ink: #86b6ef;
@@ -234,7 +237,7 @@ code, pre, .mono { font-family: var(--mono); }
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-on);
 }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 
@@ -524,7 +527,7 @@ textarea { resize: vertical; line-height: 1.7; }
   flex: 0 0 auto;
   border-radius: 10px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-on);
   font-size: 17px;
 }
 .brand-name { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }

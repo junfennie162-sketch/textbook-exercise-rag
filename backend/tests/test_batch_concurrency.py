@@ -116,3 +116,50 @@ def test_job_and_tasks_persisted(isolated, monkeypatch) -> None:
     assert job_row["total"] == 2 and job_row["status"] == "success" and job_row["finished_at"]
     assert [row["status"] for row in task_rows] == ["success", "success"]
     assert task_rows[0]["solution_id"] == "sol-1"
+
+
+def test_running_count_and_job_history_cap(isolated) -> None:
+    """running_count 只统计未结束任务；已结束任务记录只保留最近若干条。"""
+    manager = BatchManager()
+    job = manager.create_job(["a"])
+    assert manager.running_count() == 1            # 新建任务处于 pending
+    job.status = TaskStatus.SUCCESS
+    assert manager.running_count() == 0
+
+    for index in range(25):
+        extra = manager.create_job([f"题{index}"])
+        extra.status = TaskStatus.SUCCESS
+    assert len(manager.jobs) <= 20                 # 记录不会无界增长
+
+
+def test_create_batch_rejects_too_many_questions(isolated, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.api import batch as batch_api
+    from app.main import app
+
+    manager = BatchManager()
+    monkeypatch.setattr(batch_api, "get_batch_manager", lambda: manager)
+    client = TestClient(app)
+
+    response = client.post("/api/batch/parse", json={"questions": ["题"] * 101})
+    assert response.status_code == 400
+    assert "最多" in response.json()["detail"]
+    assert manager.jobs == {}                      # 被拒绝时不创建任务
+
+
+def test_create_batch_rejects_when_too_many_running(isolated, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.api import batch as batch_api
+    from app.main import app
+
+    manager = BatchManager()
+    for index in range(3):                         # 3 个任务处于排队中
+        manager.create_job([f"已有题{index}"])
+    monkeypatch.setattr(batch_api, "get_batch_manager", lambda: manager)
+    client = TestClient(app)
+
+    response = client.post("/api/batch/parse", json={"questions": ["新题"]})
+    assert response.status_code == 429
+    assert "上限" in response.json()["detail"]

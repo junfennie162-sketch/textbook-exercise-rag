@@ -37,11 +37,39 @@ REPORTS = BASE_DIR / "backend" / "reports"
 
 
 def load_corpus(settings: Settings) -> tuple[list[dict], list[str]]:
-    """从持久化的解析单元重建语料：返回 (units, doc_names)。"""
-    docs_dir = settings.documents_dir
-    registry = json.loads((docs_dir / "documents.json").read_text(encoding="utf-8"))
+    """重建语料：优先读 SQLite（与运行中的知识库同源），旧版 JSON 作为兜底。
+
+    历史版本把页段存在 documents.json / {doc_id}_units.json；知识库迁入 SQLite 后，
+    继续读 JSON 会看不见新上传或已删除的文档，消融结论与真实语料脱节。
+    """
     units: list[dict] = []
     names: list[str] = []
+
+    try:
+        from app.store import documents as doc_store
+        registry = doc_store.load_documents()
+    except Exception:
+        registry = []
+
+    if registry:
+        for doc in registry:
+            for unit in doc_store.load_units(doc["doc_id"]):
+                units.append({**unit, "source_file": doc["original_name"],
+                              "doc_type": doc["doc_type"]})
+            if doc["doc_type"] == "textbook":
+                names.append(doc["original_name"])
+        if units:
+            return units, names
+
+    # 兜底：旧版 JSON 数据（没有 SQLite 数据库的旧环境仍可复现历史结论）
+    docs_dir = settings.documents_dir
+    registry_path = docs_dir / "documents.json"
+    if not registry_path.exists():
+        raise SystemExit(
+            f"知识库为空：SQLite 无文档记录，且旧版语料 {registry_path} 不存在。\n"
+            "请先上传样例（python scripts/upload_samples.py）或建库（python scripts/init_db.py --seed-samples）")
+
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
     for doc in registry:
         units_file = docs_dir / f"{doc['doc_id']}_units.json"
         if not units_file.exists():
@@ -52,6 +80,8 @@ def load_corpus(settings: Settings) -> tuple[list[dict], list[str]]:
                           "doc_type": doc["doc_type"]})
         if doc["doc_type"] == "textbook":
             names.append(doc["original_name"])
+    if not units:
+        raise SystemExit("语料为空：无法进行消融实验，请先上传教材样例。")
     return units, names
 
 
@@ -193,9 +223,16 @@ def main() -> None:
 
     REPORTS.mkdir(parents=True, exist_ok=True)
     out = REPORTS / f"ablation_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    # 报告连同实验网格、语料/数据集规模与关键词接地检查一起落盘，
+    # 便于评测面板「检索实验对比」直接展示并可复核
     report = {"summary": "切块粒度 × 检索模式 × 重排 × Top-k 消融实验（检索层代理指标）",
               "note": "kw_coverage@k/hit@1 越高越好；refusal_correct 为无依据题门控拦截率",
               "similarity_threshold": settings.similarity_threshold,
+              "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+              "dataset_size": len(dataset),
+              "corpus_units": len(units),
+              "grounding": grounding,
+              "grid": {"chunk_sizes": args.chunk_sizes, "top_ks": args.top_ks},
               "rows": rows}
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n报告已保存: {out}\n")

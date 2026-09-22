@@ -24,7 +24,8 @@ def test_parse_context_recovers_structured_references() -> None:
 
 def test_template_analysis_has_five_sections_and_citations() -> None:
     text = "".join(llm_service.build_template_analysis("计算 log₂ 8 + log₃ 9。", CONTEXT))
-    assert "离线模板模式" in text
+    assert "离线模板模式" not in text          # 解析正文不再携带生成模式标注
+    assert text.lstrip().startswith("## 解题思路")   # 直接从五段结构开始
     for section in ("## 解题思路", "## 解题步骤", "## 易错点", "## 参考答案", "## 引用来源"):
         assert section in text, f"缺少段落 {section}"
     assert "[来源1]" in text
@@ -70,4 +71,4 @@ def test_mock_mode_never_creates_llm_client(monkeypatch) -> None:
         return [piece async for piece in llm_service.stream_analysis("计算 log₂ 8", CONTEXT)]
 
     pieces = asyncio.run(collect())
-    assert pieces and any("离线模板模式" in piece for piece in pieces)
+    assert pieces and any("## 解题思路" in piece for piece in pieces)
