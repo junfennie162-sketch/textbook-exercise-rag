@@ -7,9 +7,11 @@
 
 打包规则：
   · 排除：虚拟环境、node_modules、__pycache__、.pytest_cache、*.egg-info、dist、.git、.claude、
-          其他提交物目录，以及**所有含真实密钥的 .env 系列文件**（.env / .env.bak* / .env.local 等）
-  · 保留：全部源码、README、.env.example（配置样例）、示例数据（data/samples）、评测报告、
-          本地嵌入模型（models_cache，约 95MB，保证解压后无需联网即可运行）
+          其他提交物目录、**所有含真实密钥的 .env 系列文件**（.env / .env.bak* / .env.local 等），
+          以及 HF 缓存的内容库 backend/models_cache/models--*/blobs/（snapshots/ 已是同一份内容，
+          存两遍会让包白胖一倍）
+  · 保留：全部源码、README、.env.example（配置样例）、示例数据、评测报告、
+          本地嵌入模型快照（models_cache/snapshots，约 95MB，保证解压后无需联网即可运行）
 """
 import argparse
 import os
@@ -27,6 +29,21 @@ EXCLUDE_DIR_NAMES = {
     "中期提交", "提交文档", "最终提交",
 }
 EXCLUDE_SUFFIXES = (".pyc", ".pyo", ".egg-info")
+
+# 模型快照载荷的最小体积（bge-small-zh-v1.5 的 onnx 约 95MB，留足余量即可判定完整）
+MIN_MODEL_PAYLOAD_BYTES = 1_000_000
+
+
+def is_hf_blob_dir(path: Path) -> bool:
+    """是否为 HF 缓存的内容库目录（models_cache/models--*/blobs/）。
+
+    HF 缓存把正文存在 blobs/，snapshots/ 里是同一份内容的硬链接/副本；
+    若两者都打包，同一个 95MB 模型会在包里存两遍。离线加载只走 snapshots/ 路径
+    （已实测：仅 snapshots 的包 HF_HUB_OFFLINE=1 下可正常加载），故跳过 blobs/。
+    """
+    return (path.name == "blobs"
+            and path.parent.name.startswith("models--")
+            and "models_cache" in path.parts)
 
 
 def _is_secret_file(name: str) -> bool:
@@ -46,10 +63,29 @@ def should_skip(path: Path) -> bool:
     if path.is_dir():
         if path.name in EXCLUDE_DIR_NAMES or path.name.endswith(EXCLUDE_SUFFIXES):
             return True
-        return False
+        return is_hf_blob_dir(path)
     if _is_secret_file(path.name):
         return True
     return path.name.endswith(EXCLUDE_SUFFIXES)
+
+
+def check_model_cache(files: list[Path]) -> None:
+    """自检：排除 blobs/ 后，snapshots/ 里必须留有完整的模型载荷。
+
+    历史上出现过缓存目录只有空壳（blobs 尚未落盘）的情况，那样的包解压后无法离线运行，
+    因此出包前先把关，避免打出"看着有模型、实际加载失败"的包。
+    """
+    cache_files = [p for p in files if "models_cache" in p.parts]
+    if not cache_files:
+        return  # 树里没带模型缓存：README 已说明克隆后的获取方式，不改判
+    payloads = [p for p in cache_files if "snapshots" in p.parts]
+    if not payloads:
+        raise SystemExit("[严重] models_cache 内没有 snapshots/ 快照文件，"
+                         "打出的包无法离线加载模型，请先用完整缓存替换后重试！")
+    biggest = max(p.stat().st_size for p in payloads)
+    if biggest < MIN_MODEL_PAYLOAD_BYTES:
+        raise SystemExit(f"[严重] models_cache/snapshots 内最大文件仅 {human(biggest)}，"
+                         "模型载荷不完整（可能只有符号链接或空壳），打包前请先补齐缓存！")
 
 
 def collect_files() -> list[Path]:
@@ -80,10 +116,12 @@ def main() -> None:
     args = parser.parse_args()
 
     files = collect_files()
+    check_model_cache(files)
     total_bytes = sum(path.stat().st_size for path in files)
     print(f"待打包文件 {len(files)} 个，合计 {human(total_bytes)}")
-    print("排除：虚拟环境/node_modules/__pycache__/.git 等目录、*.pyc、以及全部 .env 系列密钥文件")
-    print("（.env.example 配置样例保留）")
+    print("排除：虚拟环境/node_modules/__pycache__/.git 等目录、*.pyc、全部 .env 系列密钥文件、"
+          "模型缓存的 blobs 副本目录")
+    print("（.env.example 配置样例与模型快照保留）")
 
     if args.list_only:
         for path in files:
